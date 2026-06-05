@@ -86,13 +86,13 @@
 <body class="text-slate-800 flex flex-col">
 
     <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-[100] transition-opacity duration-300">
+    <div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-[100] transition-opacity duration-300 hidden">
         <i class="ph ph-spinner-gap text-4xl text-orange-500 animate-spin mb-4"></i>
-        <p class="text-slate-600 font-medium" id="loadingText">กำลังเชื่อมต่อระบบ...</p>
+        <p class="text-slate-600 font-medium" id="loadingText">กำลังประมวลผล...</p>
     </div>
 
     <!-- ==================== AUTHENTICATION VIEWS ==================== -->
-    <div id="authViews" class="flex-1 flex items-center justify-center p-4 auth-bg hidden">
+    <div id="authViews" class="flex-1 flex items-center justify-center p-4 auth-bg">
         
         <!-- Login Form -->
         <div id="loginFormCard" class="bg-white p-8 rounded-2xl shadow-lg border border-orange-100 w-full max-w-md transition-all duration-300">
@@ -101,7 +101,7 @@
                     <i class="ph ph-student text-3xl text-orange-600"></i>
                 </div>
                 <h2 class="text-2xl font-bold text-slate-800">เข้าสู่ระบบ</h2>
-                <p class="text-slate-500 text-sm mt-1">จัดการตารางเรียนของคุณได้ทุกที่</p>
+                <p class="text-slate-500 text-sm mt-1">จัดการตารางเรียนของคุณ (Offline Mode)</p>
             </div>
 
             <form id="loginForm" class="space-y-5">
@@ -360,25 +360,16 @@
         </div>
     </div>
 
-    <!-- Firebase System & App Logic -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- Firebase Init ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
+    <!-- Application Logic (Local Storage Only) -->
+    <script>
         // --- State Variables ---
-        let firebaseUser = null;
-        let currentStudentId = null;
+        let currentUser = null; // Store current logged-in user details
         let scheduleData = [];
         let editingClassId = null;
-        let unsubscribeSnapshot = null;
+
+        // --- Local Storage Keys ---
+        const USERS_DB_KEY = 'myschedule_users_db';
+        // Schedules are saved using: myschedule_data_[studentId]
 
         // --- View Elements ---
         const loadingOverlay = document.getElementById('loadingOverlay');
@@ -387,32 +378,21 @@
         const loginFormCard = document.getElementById('loginFormCard');
         const registerFormCard = document.getElementById('registerFormCard');
 
-        // --- Start Connection ---
-        const initAuth = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (err) {
-                console.error("Auth init fail", err);
-                showToast("เชื่อมต่อระบบล้มเหลว", "error");
-                hideLoading();
+        // --- Initialization ---
+        function checkLoginSession() {
+            // Check if there's an active session saved
+            const sessionData = sessionStorage.getItem('myschedule_active_session');
+            if (sessionData) {
+                const user = JSON.parse(sessionData);
+                setCurrentUser(user);
+                showMainApp();
+            } else {
+                showAuthView();
             }
-        };
+        }
 
-        initAuth();
-
-        onAuthStateChanged(auth, (user) => {
-            firebaseUser = user;
-            if (user) {
-                // System is ready. User needs to login with Student ID now
-                if (!currentStudentId) {
-                    hideLoading();
-                    showAuthView();
-                }
-            }
+        window.addEventListener('DOMContentLoaded', () => {
+            checkLoginSession();
         });
 
         // --- UI Switching ---
@@ -451,10 +431,19 @@
             loginFormCard.classList.remove('hidden');
         });
 
+        // --- Database Helpers (Local Storage) ---
+        function getUsersDB() {
+            const db = localStorage.getItem(USERS_DB_KEY);
+            return db ? JSON.parse(db) : {};
+        }
+
+        function saveUsersDB(dbObj) {
+            localStorage.setItem(USERS_DB_KEY, JSON.stringify(dbObj));
+        }
+
         // --- AUTH: Login & Register Logic ---
-        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        document.getElementById('registerForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            if (!firebaseUser) return;
 
             const stId = document.getElementById('regStudentId').value.trim();
             const fName = document.getElementById('regFirstName').value.trim();
@@ -463,94 +452,81 @@
             const passConf = document.getElementById('regConfirmPassword').value;
 
             if (pass !== passConf) {
-                showToast("รหัสผ่านไม่ตรงกัน", "error");
-                return;
+                return showToast("รหัสผ่านไม่ตรงกัน", "error");
             }
 
             showLoading("กำลังสร้างบัญชี...");
-            try {
-                // Rule 1 strictly followed: using public/data with studentId as document ID
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', stId);
-                const docSnap = await getDoc(docRef);
-
-                if (docSnap.exists()) {
+            
+            // Simulate network delay
+            setTimeout(() => {
+                const usersDB = getUsersDB();
+                
+                if (usersDB[stId]) {
                     hideLoading();
-                    showToast("รหัสนักศึกษานี้ถูกลงทะเบียนแล้ว", "error");
-                    return;
+                    return showToast("รหัสนักศึกษานี้ถูกลงทะเบียนแล้ว", "error");
                 }
 
-                // Create new user profile
+                // Register user
                 const newProfile = {
                     studentId: stId,
                     firstName: fName,
                     lastName: lName,
-                    password: pass, // In real app, never store plain text. Ok for this demo.
-                    schedule: []
+                    password: pass
                 };
 
-                await setDoc(docRef, newProfile);
+                usersDB[stId] = newProfile;
+                saveUsersDB(usersDB);
                 
-                // Login automatically
+                // Set session
+                sessionStorage.setItem('myschedule_active_session', JSON.stringify(newProfile));
                 setCurrentUser(newProfile);
+                
                 hideLoading();
                 showToast("ลงทะเบียนสำเร็จ!", "success");
                 showMainApp();
-
-            } catch (err) {
-                console.error(err);
-                hideLoading();
-                showToast("เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
-            }
+            }, 800);
         });
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            if (!firebaseUser) return;
 
             const stId = document.getElementById('loginStudentId').value.trim();
             const pass = document.getElementById('loginPassword').value;
 
             showLoading("กำลังเข้าสู่ระบบ...");
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', stId);
-                const docSnap = await getDoc(docRef);
+            
+            // Simulate network delay
+            setTimeout(() => {
+                const usersDB = getUsersDB();
+                const user = usersDB[stId];
 
-                if (!docSnap.exists()) {
+                if (!user) {
                     hideLoading();
-                    showToast("ไม่พบรหัสนักศึกษานี้ในระบบ", "error");
-                    return;
+                    return showToast("ไม่พบรหัสนักศึกษานี้ในระบบ", "error");
                 }
 
-                const userData = docSnap.data();
-                if (userData.password !== pass) {
+                if (user.password !== pass) {
                     hideLoading();
-                    showToast("รหัสผ่านไม่ถูกต้อง", "error");
-                    return;
+                    return showToast("รหัสผ่านไม่ถูกต้อง", "error");
                 }
 
-                // Success
-                setCurrentUser(userData);
+                // Set session
+                sessionStorage.setItem('myschedule_active_session', JSON.stringify(user));
+                setCurrentUser(user);
+                
                 hideLoading();
-                showToast(`ยินดีต้อนรับคุณ ${userData.firstName}`, "success");
+                showToast(`ยินดีต้อนรับคุณ ${user.firstName}`, "success");
                 showMainApp();
-
-            } catch (err) {
-                console.error(err);
-                hideLoading();
-                showToast("ระบบขัดข้อง กรุณาลองใหม่", "error");
-            }
+            }, 600);
         });
 
         document.getElementById('logoutBtn').addEventListener('click', () => {
-            if (unsubscribeSnapshot) {
-                unsubscribeSnapshot();
-                unsubscribeSnapshot = null;
-            }
-            currentStudentId = null;
+            sessionStorage.removeItem('myschedule_active_session');
+            currentUser = null;
             scheduleData = [];
             editingClassId = null;
             
-            // clear form
+            // clear forms
             document.getElementById('loginForm').reset();
             document.getElementById('registerForm').reset();
             document.getElementById('scheduleForm').reset();
@@ -561,43 +537,28 @@
         });
 
         function setCurrentUser(profile) {
-            currentStudentId = profile.studentId;
+            currentUser = profile;
             document.getElementById('displayUserName').innerText = `${profile.firstName} ${profile.lastName}`;
             document.getElementById('displayStudentId').innerText = `รหัสนักศึกษา: ${profile.studentId}`;
             document.getElementById('displayUserInitials').innerText = profile.firstName.substring(0, 1).toUpperCase();
             
-            // Start listening to realtime database changes for this student
-            listenToSchedule();
+            loadUserSchedule();
         }
 
-        // --- Database Sync (Schedule) ---
-        function listenToSchedule() {
-            if (!firebaseUser || !currentStudentId) return;
-            
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', currentStudentId);
-            
-            // Real-time listener
-            unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    scheduleData = data.schedule || [];
-                    renderClasses();
-                }
-            }, (error) => {
-                console.error("Snapshot error:", error);
-                showToast("ขาดการเชื่อมต่อกับเซิร์ฟเวอร์", "error");
-            });
+        // --- Data Management (Schedule) ---
+        function loadUserSchedule() {
+            if (!currentUser) return;
+            const key = `myschedule_data_${currentUser.studentId}`;
+            const data = localStorage.getItem(key);
+            scheduleData = data ? JSON.parse(data) : [];
+            renderClasses();
         }
 
-        async function saveScheduleToCloud(newScheduleArray) {
-            if (!firebaseUser || !currentStudentId) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'students', currentStudentId);
-            try {
-                await updateDoc(docRef, { schedule: newScheduleArray });
-            } catch (err) {
-                console.error("Save error:", err);
-                showToast("บันทึกข้อมูลไม่สำเร็จ", "error");
-            }
+        function saveScheduleLocal() {
+            if (!currentUser) return;
+            const key = `myschedule_data_${currentUser.studentId}`;
+            localStorage.setItem(key, JSON.stringify(scheduleData));
+            renderClasses();
         }
 
 
@@ -758,32 +719,30 @@
 
             if (isOverlap) return showToast("เวลาเรียนทับซ้อนกับวิชาอื่น!", "error");
 
-            let updatedSchedule;
-
             if (editingClassId) {
-                updatedSchedule = scheduleData.map(item => {
+                scheduleData = scheduleData.map(item => {
                     if (item.id === editingClassId) {
                         return { ...item, subject: subjectName, room: roomName, teacher: teacherName, day, startTime, endTime, color };
                     }
                     return item;
                 });
-                showToast("อัปเดตวิชาบนคลาวด์แล้ว", "success");
+                showToast("อัปเดตวิชาเรียนแล้ว", "success");
                 cancelEditMode();
             } else {
                 const newClass = {
                     id: 'class_' + Date.now() + Math.random().toString(36).substr(2, 5),
                     subject: subjectName, room: roomName, teacher: teacherName, day, startTime, endTime, color
                 };
-                updatedSchedule = [...scheduleData, newClass];
+                scheduleData.push(newClass);
                 
                 document.getElementById('subjectName').value = '';
                 document.getElementById('roomName').value = '';
                 document.getElementById('teacherName').value = '';
-                showToast("เพิ่มวิชาลงคลาวด์แล้ว", "success");
+                showToast("เพิ่มวิชาเรียนแล้ว", "success");
             }
 
-            // Save to Firebase (Realtime snapshot listener will update UI)
-            saveScheduleToCloud(updatedSchedule);
+            // Save to LocalStorage
+            saveScheduleLocal();
         });
 
         // --- Edit Mode ---
@@ -853,9 +812,9 @@
             document.getElementById('confirmMessage').innerText = `คุณแน่ใจหรือไม่ว่าต้องการลบวิชา "${subjectName}" ?`;
             
             deleteAction = () => {
-                const updatedSchedule = scheduleData.filter(item => item.id !== id);
-                saveScheduleToCloud(updatedSchedule);
-                showToast("ลบข้อมูลออกจากคลาวด์แล้ว", "success");
+                scheduleData = scheduleData.filter(item => item.id !== id);
+                saveScheduleLocal();
+                showToast("ลบข้อมูลวิชาเรียนแล้ว", "success");
                 closeModal();
             };
             openModal();
@@ -866,10 +825,11 @@
             if (editingClassId) return showToast("กรุณายกเลิกการแก้ไขก่อนล้างข้อมูล", "error");
 
             document.getElementById('confirmTitle').innerText = 'ล้างตารางเรียนทั้งหมด';
-            document.getElementById('confirmMessage').innerText = 'ข้อมูลวิชาเรียนทั้งหมดจะถูกลบออกจากระบบ คุณต้องการดำเนินการต่อหรือไม่?';
+            document.getElementById('confirmMessage').innerText = 'ข้อมูลวิชาเรียนทั้งหมดจะถูกลบ คุณต้องการดำเนินการต่อหรือไม่?';
             
             deleteAction = () => {
-                saveScheduleToCloud([]);
+                scheduleData = [];
+                saveScheduleLocal();
                 showToast("ล้างข้อมูลทั้งหมดแล้ว", "success");
                 closeModal();
             };
