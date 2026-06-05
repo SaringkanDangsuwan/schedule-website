@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -66,10 +67,10 @@
             border-radius: 0.5rem;
         }
         
-        /* Grid background lines */
+        /* Grid background lines - ปรับให้หาร 7 เพราะมี 7 ช่วงเวลา (09:00 - 16:00) */
         .grid-bg-lines {
             background-image: linear-gradient(to right, #ffedd5 1px, transparent 1px);
-            background-size: calc(100% / 12) 100%; /* 12 hours */
+            background-size: calc(100% / 7) 100%; 
         }
         
         .class-block {
@@ -275,16 +276,16 @@
                         <div class="flex gap-4">
                             <div class="flex-1">
                                 <label class="block text-sm font-medium text-slate-600 mb-1">เวลาเริ่ม <span class="text-red-500">*</span></label>
-                                <input type="time" id="startTime" required min="08:00" max="20:00" value="08:00"
+                                <input type="time" id="startTime" required min="09:00" max="16:00" value="09:00"
                                        class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all">
                             </div>
                             <div class="flex-1">
                                 <label class="block text-sm font-medium text-slate-600 mb-1">เวลาสิ้นสุด <span class="text-red-500">*</span></label>
-                                <input type="time" id="endTime" required min="08:00" max="20:00" value="09:00"
+                                <input type="time" id="endTime" required min="09:00" max="16:00" value="10:00"
                                        class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all">
                             </div>
                         </div>
-                        <p class="text-xs text-slate-500">*ระบุเวลาได้ตั้งแต่ 08:00 น. ถึง 20:00 น.</p>
+                        <p class="text-xs text-slate-500">*ระบุเวลาได้ตั้งแต่ 09:00 น. ถึง 16:00 น.</p>
 
                         <div>
                             <label class="block text-sm font-medium text-slate-600 mb-1">สีกล่องวิชา</label>
@@ -327,22 +328,15 @@
                     <div class="overflow-x-auto timetable-scroll pb-4 flex-1">
                         <div class="min-w-[900px] relative">
                             
-                            <!-- Time Header (08:00 - 20:00 = 12 Hours) -->
-                            <div class="flex ml-20 h-8 border-b border-orange-200 relative text-xs font-medium text-orange-800/60">
-                                <!-- 12 slots for hours -->
-                                <div class="flex-1 border-l border-orange-200 pl-1">08:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">09:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">10:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">11:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">12:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">13:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">14:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">15:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">16:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">17:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">18:00</div>
-                                <div class="flex-1 border-l border-orange-200 pl-1">19:00</div>
-                                <div class="absolute right-0 top-0 translate-x-1/2">20:00</div>
+                            <!-- Time Header (09:00 - 16:00 = 7 Hours / 7 Blocks) -->
+                            <div class="flex ml-20 h-10 border-b border-orange-200 relative text-[10px] sm:text-xs font-medium text-orange-800/80 text-center">
+                                <div class="flex-1 border-l border-orange-200 flex items-center justify-center">09:00 - 10:00</div>
+                                <div class="flex-1 border-l border-orange-200 flex items-center justify-center">10:00 - 11:00</div>
+                                <div class="flex-1 border-l border-orange-200 flex items-center justify-center">11:00 - 12:00</div>
+                                <div class="flex-1 border-l border-orange-200 flex items-center justify-center">12:00 - 13:00</div>
+                                <div class="flex-1 border-l border-orange-200 flex items-center justify-center">13:00 - 14:00</div>
+                                <div class="flex-1 border-l border-orange-200 flex items-center justify-center">14:00 - 15:00</div>
+                                <div class="flex-1 border-l border-r border-orange-200 flex items-center justify-center">15:00 - 16:00</div>
                             </div>
 
                             <!-- Days Container -->
@@ -396,7 +390,7 @@
                     </div>
                     <div>
                         <p class="text-xs text-slate-500 font-medium mb-0.5">วัน และ เวลาเรียน</p>
-                        <p class="font-medium" id="detailTime">08:00 - 09:00 (วันจันทร์)</p>
+                        <p class="font-medium" id="detailTime">09:00 - 10:00 (วันจันทร์)</p>
                     </div>
                 </div>
 
@@ -423,7 +417,7 @@
         </div>
     </div>
 
-    <!-- Application Logic (Local Storage Only) -->
+    <!-- Application Logic -->
     <script>
         // --- State Variables ---
         let currentUser = null; 
@@ -602,9 +596,10 @@
         //         SCHEDULE APP LOGIC (UI)
         // ==========================================
 
-        const START_HOUR = 8;
-        const END_HOUR = 20;
-        const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
+        // อัปเดตเวลาเริ่มต้นและสิ้นสุด (09:00 - 16:00)
+        const START_HOUR = 9;
+        const END_HOUR = 16;
+        const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60; // 420 นาที (7 ชั่วโมง)
         
         const DAYS = [
             { id: 'mon', name: 'จันทร์', color: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -682,7 +677,6 @@
                 const subTextColor = isDark ? 'text-white/90' : 'text-slate-700';
                 const ringStyle = (editingClassId === item.id) ? 'ring-4 ring-orange-500 ring-opacity-50' : '';
 
-                // Text styling applied here: No truncate, wrap words, smaller text, tighter line height
                 let roomHtml = item.room ? `<div class="flex items-start gap-1 mt-0.5"><i class="ph ph-door shrink-0 mt-0.5"></i> <span class="break-words">${item.room}</span></div>` : '';
                 let teacherHtml = item.teacher ? `<div class="flex items-start gap-1 mt-0.5"><i class="ph ph-user shrink-0 mt-0.5"></i> <span class="break-words">${item.teacher}</span></div>` : '';
 
@@ -699,7 +693,7 @@
                             </button>
                         </div>
 
-                        <!-- Content Area (Scrollable if extremely long, wraps normally) -->
+                        <!-- Content Area -->
                         <div class="w-full h-full flex flex-col overflow-y-auto class-content-scroll pb-1">
                             <div class="font-bold text-[10px] sm:text-xs leading-tight break-words pr-12 ${textColor} mb-1">${item.subject}</div>
                             
@@ -715,19 +709,19 @@
                 track.appendChild(classBox);
             });
 
-            // Attach event listeners dynamically to prevent bubbling
+            // Attach event listeners
             document.querySelectorAll('.trigger-detail').forEach(card => {
                 card.addEventListener('click', (e) => showClassDetails(e.currentTarget.dataset.id));
             });
             document.querySelectorAll('.edit-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevent opening modal
+                    e.stopPropagation(); 
                     startEditMode(e.currentTarget.dataset.id);
                 });
             });
             document.querySelectorAll('.delete-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevent opening modal
+                    e.stopPropagation(); 
                     requestDeleteClass(e.currentTarget.dataset.id, e.currentTarget.dataset.name);
                 });
             });
@@ -741,7 +735,6 @@
             const classItem = scheduleData.find(c => c.id === id);
             if(!classItem) return;
 
-            // Prepare Data
             document.getElementById('detailSubject').innerText = classItem.subject;
             const dayObj = DAYS.find(d => d.id === classItem.day);
             const dayName = dayObj ? dayObj.name : '';
@@ -750,7 +743,6 @@
             document.getElementById('detailRoom').innerText = classItem.room ? classItem.room : '-';
             document.getElementById('detailTeacher').innerText = classItem.teacher ? classItem.teacher : '-';
 
-            // Theme Header based on class color
             const header = document.getElementById('detailHeader');
             header.style.backgroundColor = classItem.color;
             const isDark = isColorDark(classItem.color);
@@ -765,7 +757,6 @@
                 document.getElementById('closeDetailBtn').className = 'absolute top-4 right-4 bg-black/10 hover:bg-black/20 text-slate-800 rounded-full w-8 h-8 flex items-center justify-center transition-colors';
             }
 
-            // Show Modal
             classDetailModal.classList.remove('hidden');
             setTimeout(() => {
                 classDetailModal.classList.remove('opacity-0');
@@ -807,7 +798,7 @@
 
             if (startMins >= endMins) return showToast("เวลาเริ่มต้องมาก่อนเวลาสิ้นสุด", "error");
             if (startH < START_HOUR || endH > END_HOUR || (endH === END_HOUR && endM > 0)) {
-                return showToast(`กรุณากำหนดเวลาให้อยู่ในช่วง ${START_HOUR}:00 - ${END_HOUR}:00`, "error");
+                return showToast(`กรุณากำหนดเวลาให้อยู่ในช่วง 0${START_HOUR}:00 - ${END_HOUR}:00`, "error");
             }
 
             const isOverlap = scheduleData.some(item => {
@@ -882,8 +873,8 @@
         function cancelEditMode() {
             editingClassId = null;
             form.reset();
-            document.getElementById('startTime').value = '08:00';
-            document.getElementById('endTime').value = '09:00';
+            document.getElementById('startTime').value = '09:00';
+            document.getElementById('endTime').value = '10:00';
             document.getElementById('subjectColor').value = '#f97316';
 
             const formContainer = document.getElementById('formContainer');
