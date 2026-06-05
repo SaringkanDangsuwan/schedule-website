@@ -1,0 +1,689 @@
+```html
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Schedule - สร้างตารางเรียน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #fff7ed; /* พื้นหลังสีส้มอ่อนมาก */
+        }
+        
+        /* Custom Scrollbar for the timetable */
+        .timetable-scroll::-webkit-scrollbar {
+            height: 10px;
+        }
+        .timetable-scroll::-webkit-scrollbar-track {
+            background: #ffedd5;
+            border-radius: 8px;
+        }
+        .timetable-scroll::-webkit-scrollbar-thumb {
+            background: #fdba74;
+            border-radius: 8px;
+        }
+        .timetable-scroll::-webkit-scrollbar-thumb:hover {
+            background: #fb923c;
+        }
+
+        /* Color Picker Customization */
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 100%;
+            height: 40px;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            padding: 0;
+            overflow: hidden;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 0.5rem;
+        }
+        
+        /* Grid background lines */
+        .grid-bg-lines {
+            background-image: linear-gradient(to right, #ffedd5 1px, transparent 1px);
+            background-size: calc(100% / 12) 100%; /* 12 hours */
+        }
+        
+        .class-block {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .class-block:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            z-index: 10;
+        }
+        
+        /* Animation for editing mode */
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(249, 115, 22, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+        }
+        .editing-mode {
+            border-color: #f97316;
+            animation: pulse-border 2s infinite;
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-sm px-6 py-4 mb-6 border-b-2 border-orange-500">
+        <div class="max-w-7xl mx-auto flex items-center gap-3">
+            <i class="ph ph-calendar-check text-3xl text-orange-600"></i>
+            <h1 class="text-2xl font-bold text-slate-800">ตารางเรียนของฉัน</h1>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col xl:flex-row gap-6 pb-12">
+        
+        <!-- Left Column: Form -->
+        <section class="xl:w-1/3 shrink-0">
+            <div id="formContainer" class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100 transition-all duration-300">
+                <div class="flex justify-between items-center mb-4 border-b border-orange-100 pb-3">
+                    <h2 id="formTitle" class="text-lg font-semibold flex items-center gap-2">
+                        <i id="formIcon" class="ph ph-plus-circle text-orange-500 text-xl"></i> 
+                        <span>เพิ่มวิชาเรียน</span>
+                    </h2>
+                    <!-- Badge for editing status (hidden by default) -->
+                    <span id="editingBadge" class="hidden bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                        โหมดแก้ไข
+                    </span>
+                </div>
+                
+                <form id="scheduleForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">ชื่อวิชา <span class="text-red-500">*</span></label>
+                        <input type="text" id="subjectName" required placeholder="เช่น คณิตศาสตร์, ภาษาอังกฤษ" 
+                               class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all">
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-slate-600 mb-1">ห้องเรียน</label>
+                            <input type="text" id="roomName" placeholder="เช่น Room 101" 
+                                   class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-slate-600 mb-1">อาจารย์ผู้สอน</label>
+                            <input type="text" id="teacherName" placeholder="เช่น อ.สมชาย" 
+                                   class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">วัน <span class="text-red-500">*</span></label>
+                        <select id="daySelect" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all appearance-none bg-white">
+                            <option value="mon">วันจันทร์</option>
+                            <option value="tue">วันอังคาร</option>
+                            <option value="wed">วันพุธ</option>
+                            <option value="thu">วันพฤหัสบดี</option>
+                            <option value="fri">วันศุกร์</option>
+                        </select>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-slate-600 mb-1">เวลาเริ่ม <span class="text-red-500">*</span></label>
+                            <input type="time" id="startTime" required min="08:00" max="20:00" value="08:00"
+                                   class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-slate-600 mb-1">เวลาสิ้นสุด <span class="text-red-500">*</span></label>
+                            <input type="time" id="endTime" required min="08:00" max="20:00" value="09:00"
+                                   class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all">
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500">*ระบุเวลาได้ตั้งแต่ 08:00 น. ถึง 20:00 น.</p>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">สีกล่องวิชา</label>
+                        <div class="flex gap-2 items-center">
+                            <input type="color" id="subjectColor" value="#f97316" class="w-12 h-10 border-none shrink-0">
+                            <div class="flex gap-2 flex-wrap">
+                                <!-- Quick colors (Slightly adjusted to fit orange theme better, but keeping variety) -->
+                                <button type="button" class="w-6 h-6 rounded-full bg-[#f87171] ring-2 ring-transparent focus:ring-orange-400" onclick="setColor('#f87171')"></button>
+                                <button type="button" class="w-6 h-6 rounded-full bg-[#fb923c] ring-2 ring-transparent focus:ring-orange-400" onclick="setColor('#fb923c')"></button>
+                                <button type="button" class="w-6 h-6 rounded-full bg-[#f59e0b] ring-2 ring-transparent focus:ring-orange-400" onclick="setColor('#f59e0b')"></button>
+                                <button type="button" class="w-6 h-6 rounded-full bg-[#34d399] ring-2 ring-transparent focus:ring-orange-400" onclick="setColor('#34d399')"></button>
+                                <button type="button" class="w-6 h-6 rounded-full bg-[#38bdf8] ring-2 ring-transparent focus:ring-orange-400" onclick="setColor('#38bdf8')"></button>
+                                <button type="button" class="w-6 h-6 rounded-full bg-[#818cf8] ring-2 ring-transparent focus:ring-orange-400" onclick="setColor('#818cf8')"></button>
+                                <button type="button" class="w-6 h-6 rounded-full bg-[#c084fc] ring-2 ring-transparent focus:ring-orange-400" onclick="setColor('#c084fc')"></button>
+                                <button type="button" class="w-6 h-6 rounded-full bg-[#fb7185] ring-2 ring-transparent focus:ring-orange-400" onclick="setColor('#fb7185')"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 space-y-2">
+                        <button type="submit" id="submitBtn" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex justify-center items-center gap-2 shadow-md shadow-orange-200">
+                            <i class="ph ph-floppy-disk text-xl" id="submitIcon"></i> 
+                            <span id="submitText">บันทึกวิชาเรียน</span>
+                        </button>
+                        
+                        <button type="button" id="cancelEditBtn" onclick="cancelEditMode()" class="hidden w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-lg transition-colors flex justify-center items-center gap-2">
+                            <i class="ph ph-x-circle text-lg"></i> ยกเลิกการแก้ไข
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- Right Column: Timetable Grid -->
+        <section class="xl:w-2/3 flex-1">
+            <div class="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-orange-100 overflow-hidden flex flex-col h-full">
+                <div class="flex justify-between items-center mb-4 border-b border-orange-100 pb-3">
+                    <h2 class="text-lg font-semibold flex items-center gap-2 text-slate-800">
+                        <i class="ph ph-table text-orange-500 text-xl"></i>
+                        ตารางเรียน
+                    </h2>
+                    <button id="clearAllBtn" class="text-sm text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-md transition-colors flex items-center gap-1">
+                        <i class="ph ph-trash"></i> ล้างทั้งหมด
+                    </button>
+                </div>
+                
+                <!-- Timetable Wrapper for Horizontal Scroll -->
+                <div class="overflow-x-auto timetable-scroll pb-4 flex-1">
+                    <div class="min-w-[900px] relative">
+                        
+                        <!-- Time Header (08:00 - 20:00 = 12 Hours) -->
+                        <div class="flex ml-20 h-8 border-b border-orange-200 relative text-xs font-medium text-orange-800/60">
+                            <!-- 12 slots for hours -->
+                            <div class="flex-1 border-l border-orange-200 pl-1">08:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">09:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">10:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">11:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">12:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">13:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">14:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">15:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">16:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">17:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">18:00</div>
+                            <div class="flex-1 border-l border-orange-200 pl-1">19:00</div>
+                            <div class="absolute right-0 top-0 translate-x-1/2">20:00</div>
+                        </div>
+
+                        <!-- Days Container -->
+                        <div class="mt-2 space-y-2 relative" id="timetableDays">
+                            <!-- Generated via JS -->
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Custom Toast Notification -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 flex flex-col gap-2 z-50"></div>
+
+    <!-- Confirm Modal (Hidden by default) -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 hidden opacity-0 transition-opacity">
+        <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl transform scale-95 transition-transform" id="confirmModalCard">
+            <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                <i class="ph ph-warning text-2xl text-red-600"></i>
+            </div>
+            <h3 class="text-lg font-bold text-center text-slate-800 mb-2" id="confirmTitle">ยืนยันการลบ</h3>
+            <p class="text-center text-slate-600 mb-6" id="confirmMessage">คุณต้องการลบวิชานี้ใช่หรือไม่?</p>
+            <div class="flex gap-3">
+                <button id="btnCancel" class="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors font-medium">ยกเลิก</button>
+                <button id="btnConfirm" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium">ลบข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const START_HOUR = 8;
+        const END_HOUR = 20;
+        const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60; // 720 minutes (12 hours)
+        
+        // Colors slightly adjusted to fit orange theme better
+        const DAYS = [
+            { id: 'mon', name: 'จันทร์', color: 'bg-amber-100 text-amber-800 border-amber-200' },
+            { id: 'tue', name: 'อังคาร', color: 'bg-pink-100 text-pink-800 border-pink-200' },
+            { id: 'wed', name: 'พุธ', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+            { id: 'thu', name: 'พฤหัสฯ', color: 'bg-orange-100 text-orange-800 border-orange-200' },
+            { id: 'fri', name: 'ศุกร์', color: 'bg-sky-100 text-sky-800 border-sky-200' }
+        ];
+
+        // --- State Management ---
+        let schedule = JSON.parse(localStorage.getItem('my_schedule_v2')) || [];
+        let editingClassId = null; // Track which class is currently being edited
+
+        // --- DOM Elements ---
+        const form = document.getElementById('scheduleForm');
+        const formContainer = document.getElementById('formContainer');
+        const timetableDays = document.getElementById('timetableDays');
+        const toastContainer = document.getElementById('toastContainer');
+        const clearAllBtn = document.getElementById('clearAllBtn');
+        const colorInput = document.getElementById('subjectColor');
+
+        // Form specific elements
+        const formTitleSpan = document.querySelector('#formTitle span');
+        const formIcon = document.getElementById('formIcon');
+        const submitBtn = document.getElementById('submitBtn');
+        const submitText = document.getElementById('submitText');
+        const submitIcon = document.getElementById('submitIcon');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const editingBadge = document.getElementById('editingBadge');
+
+        // Modal Elements
+        const confirmModal = document.getElementById('confirmModal');
+        const confirmModalCard = document.getElementById('confirmModalCard');
+        const btnCancel = document.getElementById('btnCancel');
+        const btnConfirm = document.getElementById('btnConfirm');
+        let deleteAction = null;
+
+        // --- Initialization ---
+        function init() {
+            renderDayTracks();
+            renderClasses();
+        }
+
+        // --- Set Color from Quick Buttons ---
+        function setColor(hex) {
+            colorInput.value = hex;
+        }
+
+        // --- Render the empty grid for days ---
+        function renderDayTracks() {
+            timetableDays.innerHTML = '';
+            DAYS.forEach(day => {
+                const dayRow = document.createElement('div');
+                dayRow.className = 'flex items-stretch h-28 sm:h-32 group'; 
+                dayRow.innerHTML = `
+                    <div class="w-20 shrink-0 flex flex-col items-center justify-center font-bold text-sm sm:text-base rounded-l-xl border-y border-l ${day.color}">
+                        <span>${day.name}</span>
+                    </div>
+                    <div class="flex-1 relative bg-white border border-orange-100 rounded-r-xl grid-bg-lines overflow-hidden" id="track-${day.id}">
+                    </div>
+                `;
+                timetableDays.appendChild(dayRow);
+            });
+        }
+
+        // --- Render classes on the grid ---
+        function renderClasses() {
+            // Clear existing classes from tracks
+            DAYS.forEach(day => {
+                const track = document.getElementById(`track-${day.id}`);
+                if(track) track.innerHTML = '';
+            });
+
+            schedule.forEach(item => {
+                const track = document.getElementById(`track-${item.day}`);
+                if (!track) return;
+
+                // Calculate Position and Width
+                const [startH, startM] = item.startTime.split(':').map(Number);
+                const [endH, endM] = item.endTime.split(':').map(Number);
+
+                const startTotalMins = ((startH * 60) + startM) - (START_HOUR * 60);
+                const durationMins = ((endH * 60) + endM) - ((startH * 60) + startM);
+
+                const leftPercent = (startTotalMins / TOTAL_MINUTES) * 100;
+                const widthPercent = (durationMins / TOTAL_MINUTES) * 100;
+
+                // Create the DOM element
+                const classBox = document.createElement('div');
+                classBox.className = 'class-block absolute top-1 bottom-1 p-0.5 rounded-lg';
+                classBox.style.left = `${leftPercent}%`;
+                classBox.style.width = `${widthPercent}%`;
+                
+                // Determine text color based on background darkness
+                const isDark = isColorDark(item.color);
+                const textColor = isDark ? 'text-white' : 'text-slate-900';
+                const subTextColor = isDark ? 'text-white/80' : 'text-slate-700/80';
+
+                // Check if this class is currently being edited
+                const isEditingThis = editingClassId === item.id;
+                const ringStyle = isEditingThis ? 'ring-4 ring-orange-500 ring-opacity-50' : '';
+
+                // Build HTML for room and teacher only if they exist
+                let roomHtml = '';
+                if (item.room) {
+                    roomHtml = `<div class="truncate flex items-center gap-1"><i class="ph ph-door"></i> ${item.room}</div>`;
+                }
+                
+                let teacherHtml = '';
+                if (item.teacher) {
+                    teacherHtml = `<div class="truncate flex items-center gap-1"><i class="ph ph-user"></i> ${item.teacher}</div>`;
+                }
+
+                classBox.innerHTML = `
+                    <div class="w-full h-full rounded-md shadow-sm border border-black/10 flex flex-col px-2 py-1.5 relative overflow-hidden group ${ringStyle}" style="background-color: ${item.color};">
+                        
+                        <!-- Action Buttons (Edit & Delete) -->
+                        <div class="absolute top-1 right-1 flex gap-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="startEditMode('${item.id}')" class="w-6 h-6 bg-black/30 hover:bg-orange-500 rounded text-white flex items-center justify-center transition-colors" title="แก้ไขวิชานี้">
+                                <i class="ph ph-pencil-simple text-sm"></i>
+                            </button>
+                            <button onclick="requestDeleteClass('${item.id}', '${item.subject}')" class="w-6 h-6 bg-black/30 hover:bg-red-500 rounded text-white flex items-center justify-center transition-colors" title="ลบวิชานี้">
+                                <i class="ph ph-x text-sm"></i>
+                            </button>
+                        </div>
+
+                        <div class="font-bold text-xs sm:text-sm truncate pr-12 ${textColor} mb-1">${item.subject}</div>
+                        
+                        <div class="flex-1 flex flex-col justify-end text-[10px] sm:text-xs ${subTextColor} space-y-0.5">
+                            <div class="flex items-center gap-1 font-medium"><i class="ph ph-clock"></i> ${item.startTime} - ${item.endTime}</div>
+                            ${roomHtml}
+                            ${teacherHtml}
+                        </div>
+                    </div>
+                `;
+
+                track.appendChild(classBox);
+            });
+        }
+
+        // --- Edit Functionality ---
+        function startEditMode(id) {
+            const classToEdit = schedule.find(item => item.id === id);
+            if (!classToEdit) return;
+
+            editingClassId = id;
+
+            // Populate form
+            document.getElementById('subjectName').value = classToEdit.subject;
+            document.getElementById('roomName').value = classToEdit.room;
+            document.getElementById('teacherName').value = classToEdit.teacher;
+            document.getElementById('daySelect').value = classToEdit.day;
+            document.getElementById('startTime').value = classToEdit.startTime;
+            document.getElementById('endTime').value = classToEdit.endTime;
+            document.getElementById('subjectColor').value = classToEdit.color;
+
+            // Change UI to Edit Mode
+            formContainer.classList.add('editing-mode');
+            formTitleSpan.innerText = 'แก้ไขข้อมูลวิชา';
+            formIcon.className = 'ph ph-pencil-circle text-orange-500 text-xl';
+            editingBadge.classList.remove('hidden');
+            
+            submitBtn.className = 'w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 px-4 rounded-lg transition-colors flex justify-center items-center gap-2 shadow-md';
+            submitText.innerText = 'อัปเดตวิชาเรียน';
+            submitIcon.className = 'ph ph-check-circle text-xl';
+            
+            cancelEditBtn.classList.remove('hidden');
+
+            // Scroll to form (useful for mobile)
+            document.querySelector('nav').scrollIntoView({ behavior: 'smooth' });
+            
+            // Re-render to show ring on the editing class
+            renderClasses();
+        }
+
+        function cancelEditMode() {
+            editingClassId = null;
+            
+            // Reset Form Data
+            form.reset();
+            // set default values back
+            document.getElementById('startTime').value = '08:00';
+            document.getElementById('endTime').value = '09:00';
+            document.getElementById('subjectColor').value = '#f97316';
+
+            // Revert UI to Add Mode
+            formContainer.classList.remove('editing-mode');
+            formTitleSpan.innerText = 'เพิ่มวิชาเรียน';
+            formIcon.className = 'ph ph-plus-circle text-orange-500 text-xl';
+            editingBadge.classList.add('hidden');
+
+            submitBtn.className = 'w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex justify-center items-center gap-2 shadow-md shadow-orange-200';
+            submitText.innerText = 'บันทึกวิชาเรียน';
+            submitIcon.className = 'ph ph-floppy-disk text-xl';
+            
+            cancelEditBtn.classList.add('hidden');
+
+            renderClasses(); // Remove ring
+        }
+
+        // --- Handle Form Submission (Add or Update) ---
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const subjectName = document.getElementById('subjectName').value.trim();
+            const roomName = document.getElementById('roomName').value.trim();
+            const teacherName = document.getElementById('teacherName').value.trim();
+            const day = document.getElementById('daySelect').value;
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+            const color = document.getElementById('subjectColor').value;
+
+            // 1. Validate Time Limits
+            const [startH, startM] = startTime.split(':').map(Number);
+            const [endH, endM] = endTime.split(':').map(Number);
+            const startMins = startH * 60 + startM;
+            const endMins = endH * 60 + endM;
+
+            if (startMins >= endMins) {
+                showToast("เวลาเริ่มต้องมาก่อนเวลาสิ้นสุด", "error");
+                return;
+            }
+
+            if (startH < START_HOUR || endH > END_HOUR || (endH === END_HOUR && endM > 0)) {
+                showToast(`กรุณากำหนดเวลาให้อยู่ในช่วง ${START_HOUR}:00 - ${END_HOUR}:00`, "error");
+                return;
+            }
+
+            // 2. Check Overlap (Exclude current item if in edit mode)
+            const isOverlap = schedule.some(item => {
+                // If editing, don't check overlap with itself
+                if (editingClassId && item.id === editingClassId) return false;
+                
+                if (item.day !== day) return false;
+                
+                const [itemStartH, itemStartM] = item.startTime.split(':').map(Number);
+                const [itemEndH, itemEndM] = item.endTime.split(':').map(Number);
+                const itemStartMins = itemStartH * 60 + itemStartM;
+                const itemEndMins = itemEndH * 60 + itemEndM;
+
+                // Logic to check overlap: StartA < EndB AND EndA > StartB
+                return (startMins < itemEndMins) && (endMins > itemStartMins);
+            });
+
+            if (isOverlap) {
+                showToast("เวลาเรียนทับซ้อนกับวิชาอื่นในวันเดียวกัน!", "error");
+                return;
+            }
+
+            // 3. Save Data (Update or Add)
+            if (editingClassId) {
+                // Update existing
+                schedule = schedule.map(item => {
+                    if (item.id === editingClassId) {
+                        return {
+                            ...item,
+                            subject: subjectName,
+                            room: roomName,
+                            teacher: teacherName,
+                            day: day,
+                            startTime: startTime,
+                            endTime: endTime,
+                            color: color
+                        };
+                    }
+                    return item;
+                });
+                showToast("อัปเดตข้อมูลเรียบร้อยแล้ว", "success");
+                cancelEditMode(); // Exit edit mode
+            } else {
+                // Add new
+                const newClass = {
+                    id: 'class_' + Date.now(),
+                    subject: subjectName,
+                    room: roomName,
+                    teacher: teacherName,
+                    day: day,
+                    startTime: startTime,
+                    endTime: endTime,
+                    color: color
+                };
+                schedule.push(newClass);
+                
+                // Reset just text fields for next entry
+                document.getElementById('subjectName').value = '';
+                document.getElementById('roomName').value = '';
+                document.getElementById('teacherName').value = '';
+                showToast("เพิ่มวิชาเรียนเรียบร้อยแล้ว", "success");
+            }
+
+            saveData();
+            renderClasses();
+        });
+
+        // --- Delete functionality with Modal ---
+        function requestDeleteClass(id, subjectName) {
+            // Prevent deleting if currently editing that exact class
+            if (editingClassId === id) {
+                showToast("ไม่สามารถลบวิชาที่กำลังแก้ไขอยู่ได้", "error");
+                return;
+            }
+
+            document.getElementById('confirmTitle').innerText = 'ลบวิชาเรียน';
+            document.getElementById('confirmMessage').innerText = `คุณแน่ใจหรือไม่ว่าต้องการลบวิชา "${subjectName}" ?`;
+            
+            deleteAction = () => {
+                schedule = schedule.filter(item => item.id !== id);
+                saveData();
+                renderClasses();
+                showToast("ลบวิชาเรียนแล้ว", "success");
+                closeModal();
+            };
+            
+            openModal();
+        }
+
+        clearAllBtn.addEventListener('click', () => {
+            if (schedule.length === 0) {
+                showToast("ไม่มีข้อมูลในตารางเรียน", "info");
+                return;
+            }
+            if (editingClassId) {
+                showToast("กรุณายกเลิกการแก้ไขก่อนล้างข้อมูล", "error");
+                return;
+            }
+
+            document.getElementById('confirmTitle').innerText = 'ล้างตารางเรียน';
+            document.getElementById('confirmMessage').innerText = 'ข้อมูลวิชาเรียนทั้งหมดจะถูกลบ คุณต้องการดำเนินการต่อหรือไม่?';
+            
+            deleteAction = () => {
+                schedule = [];
+                saveData();
+                renderClasses();
+                showToast("ล้างข้อมูลตารางเรียนทั้งหมดแล้ว", "success");
+                closeModal();
+            };
+            openModal();
+        });
+
+        // Modal Controls
+        function openModal() {
+            confirmModal.classList.remove('hidden');
+            setTimeout(() => {
+                confirmModal.classList.remove('opacity-0');
+                confirmModalCard.classList.remove('scale-95');
+                confirmModalCard.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            confirmModal.classList.add('opacity-0');
+            confirmModalCard.classList.remove('scale-100');
+            confirmModalCard.classList.add('scale-95');
+            setTimeout(() => {
+                confirmModal.classList.add('hidden');
+                deleteAction = null;
+            }, 300);
+        }
+
+        btnCancel.addEventListener('click', closeModal);
+        btnConfirm.addEventListener('click', () => {
+            if(deleteAction) deleteAction();
+        });
+
+        confirmModal.addEventListener('click', (e) => {
+            if(e.target === confirmModal) closeModal();
+        });
+
+        // --- Utility: Save to Local Storage ---
+        function saveData() {
+            localStorage.setItem('my_schedule_v2', JSON.stringify(schedule));
+        }
+
+        // --- Utility: Custom Toast Notification ---
+        function showToast(message, type = "info") {
+            const toast = document.createElement('div');
+            
+            let bgClass, iconClass;
+            switch(type) {
+                case 'success':
+                    bgClass = 'bg-emerald-50 border-emerald-500 text-emerald-800';
+                    iconClass = 'ph-check-circle text-emerald-500';
+                    break;
+                case 'error':
+                    bgClass = 'bg-red-50 border-red-500 text-red-800';
+                    iconClass = 'ph-warning-circle text-red-500';
+                    break;
+                case 'info':
+                default:
+                    bgClass = 'bg-orange-50 border-orange-500 text-orange-800';
+                    iconClass = 'ph-info text-orange-500';
+                    break;
+            }
+
+            toast.className = `flex items-center gap-3 px-4 py-3 rounded-lg shadow-md border-l-4 ${bgClass} transform translate-y-10 opacity-0 transition-all duration-300`;
+            toast.innerHTML = `
+                <i class="ph ${iconClass} text-xl"></i>
+                <span class="font-medium text-sm">${message}</span>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-10');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // --- Utility: Determine if text should be light or dark based on background color ---
+        function isColorDark(color) {
+            if (color.substring(0, 1) === '#') {
+                color = color.substring(1);
+            }
+            const rgb = parseInt(color, 16);
+            const r = (rgb >> 16) & 0xff;
+            const g = (rgb >>  8) & 0xff;
+            const b = (rgb >>  0) & 0xff;
+            const hsp = Math.sqrt(
+                0.299 * (r * r) +
+                0.587 * (g * g) +
+                0.114 * (b * b)
+            );
+            return hsp < 127.5;
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', init);
+
+    </script>
+</body>
+</html>
+
+
+```
